@@ -153,4 +153,4 @@ WHERE commentaires.user_id = photos.user_id;
 --10
 -- Le nombre de likes pour la photo d’ID 4
 SELECT COUNT(*) AS nombre_likes FROM like_photos JOIN photos 
-ON photos.id=like_photos.id WHERE photos.id=4;
+ON photos.id=like_photos.photo_id WHERE photos.id=4;
