@@ -13,11 +13,13 @@ CREATE TABLE IF NOT EXISTS users(
 --Création de la table des photos
 CREATE TABLE IF NOT EXISTS photos(
 	id SERIAL PRIMARY KEY,
-	user_id int REFERENCES users(id) ON DELETE SET NULL,
+	user_id int REFERENCES users(id) ON DELETE CASCADE,
 	url VARCHAR(100) NOT NULL,
 	legende VARCHAR(500),
 	latitude INT CHECK (latitude>=-90 AND latitude<=90),
-	longitude INT CHECK (longitude>=-180 AND longitude<=180)
+	longitude INT CHECK (longitude>=-180 AND longitude<=180),
+	CONSTRAINT lat_lng_provided CHECK(latitude IS NULL AND longitude IS NULL) 
+	OR (latitude IS NOT NULL AND longitude IS NOT NULL)
 );
 
 --Création de la table des commentaires
@@ -25,7 +27,7 @@ CREATE TABLE IF NOT EXISTS commentaires(
     id SERIAL PRIMARY KEY,
     photo_id INT REFERENCES photos(id) ON DELETE CASCADE,	
     user_id INT REFERENCES users(id) ON DELETE SET NULL,
-    contenu VARCHAR(800) NOT NULL
+    contenu TEXT NOT NULL
 );
 
 --Création de la table des likes sur les photos
@@ -46,7 +48,8 @@ CREATE TABLE IF NOT EXISTS like_commentaires(
 CREATE TABLE IF NOT EXISTS follow(
     id SERIAL PRIMARY KEY,
     user_id_suiveur INT REFERENCES users(id) ON DELETE CASCADE,
-    user_id_suivi INT REFERENCES users(id) ON DELETE CASCADE
+    user_id_suivi INT CHECK (user_id_suivi!=user_id_suiveur) REFERENCES users(id) ON DELETE CASCADE,
+	UNIQUE(user_id_suiveur, user_id_suivi)
 );
 
 --Ajout des utilisateurs
@@ -140,7 +143,8 @@ WHERE photos.id = 3;
 SELECT username, photos.url, commentaires.contenu
 FROM users
 JOIN photos ON users.id=photos.user_id
-JOIN commentaires ON photos.id=commentaires.photo_id;
+JOIN commentaires ON photos.id=commentaires.photo_id,
+WHERE photos.id=1;
 
 --9
 --A l'exercice précédent afficher aussi le nom de l'utilisateur qui a commenté ses propres photos
@@ -154,3 +158,60 @@ WHERE commentaires.user_id = photos.user_id;
 -- Le nombre de likes pour la photo d’ID 4
 SELECT COUNT(*) AS nombre_likes FROM like_photos JOIN photos 
 ON photos.id=like_photos.photo_id WHERE photos.id=4;
+
+
+--==========================================================================================
+--FEEDBACK :
+
+--1)
+-- L'utilisateur peut créer son compte avec son adresse mail OU son numéro de téléphone
+email VARCHAR(100) UNIQUE
+phone VARCHAR(20) UNIQUE
+CONSTRAINT email_phone_not_null CHECK(
+	NOT(
+		(email IS NULL OR email='')
+		AND
+		(phone IS NULL OR phone='')
+	)
+);
+
+-- On peut utiliser la fonction COALESCE(,) qui va retourner le premier élément non null
+CONSTRAINT contact_info_provided CHECK(
+	COALESCE(email, phone) IS NOT NULL AND
+		(email <> '')
+		AND
+		(phone <> '')
+);
+
+--2)
+-- Ajout d'une contrainte car la latitude et la longitude sont dépendants (lignes 21 et 22)
+CONSTRAINT lat_lng_provided CHECK(latitude IS NULL AND longitude IS NULL) 
+OR (latitude IS NOT NULL AND longitude IS NOT NULL);
+
+--3)
+-- ligne 16 : modification du ON DELETE SET NULL par ON DELETE CASCADE car si 
+-- l'utilisateur supprime son compte, ses photos disparaissent
+
+--4)
+-- si on ne connait pas la taille de la chaine de caractères en avance, on peut utiliser
+-- TEXT plutôt que VARCHAR --> ligne 30 : modification de VARCHAR(800) en TEXT
+
+--5)
+-- Pour les tables de likes, notre approche est flexible : si on veut rajouter des particularités 
+-- pour les likes de photos ou les likes de commentaires séparément, c'est plus simple
+-- Autre approche :
+-- on peut créer une seule table de likes en mettant photo_id, user_id, commentaire_id
+-- si photo_id est null, c'est un like de commentaire. si commentaire_id est null, c'est un like de photo.
+-- Il faut vérifier que un des deux est null :
+CHECK(
+	COALESCE((post_id)::BOOLEAN::INTEGER, 0)
+	+
+	COALESCE((comment_id)::BOOLEAN::INTEGER, 0)
+	= 1
+),
+
+--6)
+-- Dans la table follow, ajout de conditions car on ne peut pas se suivre nous-même + 
+-- on ne peut pas suivre un utilisateur 2 fois (lignes 51 et 52)
+CHECK (user_id_suivi!=user_id_suiveur)
+UNIQUE(user_id_suivi, user_id_suiveur)
